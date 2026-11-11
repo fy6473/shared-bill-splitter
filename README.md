@@ -155,3 +155,296 @@ You must understand every line you submit. We check this with your video and in 
 5. Paste the repository link and the video link in the application form.
 
 We will run `pnpm install && pnpm check && pnpm typecheck && pnpm test` on your repository.
+
+
+
+
+
+**************Solution Response:-*************
+
+
+# Shared Bill Splitter
+
+A full-stack web application for managing shared household expenses. Users can create homes, add members, split bills equally, track individual payments, and view outstanding balances.
+
+## Features
+
+- Create homes and add members.
+- Create shared bills for a home.
+- Automatically split bills equally among all members.
+- Distribute remaining cents to members in the order they were added.
+- Track individual share payment status.
+- Mark individual shares as paid.
+- Prevent duplicate payments using idempotency keys.
+- Handle simultaneous payment requests safely.
+- Calculate outstanding balances for each member.
+- Validate user input and handle API errors.
+- Provide loading, empty, and error states in the frontend.
+
+## Technology Stack
+
+**Frontend**
+- React
+- TypeScript
+- Vite
+- TanStack Router
+- CSS
+
+**Backend**
+- Hono
+- TypeScript
+- Cloudflare Workers
+
+**Database**
+- Cloudflare D1
+- SQLite
+
+**Testing and Development Tools**
+- Vitest
+- Biome
+- Wrangler
+- pnpm
+
+## Project Structure
+
+```text
+shared-bill-splitter/
+├── api/
+│   ├── migrations/
+│   ├── src/
+│   ├── test/
+│   └── wrangler.jsonc
+├── web/
+│   ├── src/
+│   │   ├── components/
+│   │   ├── lib/
+│   │   ├── routes/
+│   │   └── styles/
+│   └── vite.config.ts
+├── package.json
+└── README.md
+```
+
+## Getting Started
+
+### Prerequisites
+
+- Node.js
+- pnpm
+
+### Installation
+
+Clone the repository:
+
+```bash
+git clone https://github.com/fy6473/shared-bill-splitter.git
+cd shared-bill-splitter
+```
+
+Install dependencies:
+
+```bash
+pnpm install
+```
+
+### Run the application
+
+```bash
+pnpm dev
+```
+
+The development command automatically applies database migrations to the local Cloudflare D1 database before starting the API and frontend servers.
+
+The application will be available at:
+
+- **Frontend:** http://localhost:5173
+- **API:** http://localhost:8787
+- **Health check:** http://localhost:8787/api/health
+
+## API Endpoints
+
+All error responses use JSON in the following format:
+
+```json
+{
+  "error": "Error message"
+}
+```
+
+| Method | Endpoint | Description |
+|---|---|---|
+| GET | `/api/health` | Check API health |
+| GET | `/api/homes` | Get all homes |
+| POST | `/api/homes` | Create a home |
+| GET | `/api/homes/:homeId/members` | Get home members |
+| POST | `/api/homes/:homeId/members` | Add a member |
+| GET | `/api/homes/:homeId/bills` | Get home bills |
+| POST | `/api/homes/:homeId/bills` | Create and split a bill |
+| POST | `/api/bills/:billId/shares/:shareId/pay` | Mark a share as paid |
+| GET | `/api/homes/:homeId/balances` | Get outstanding balances |
+
+### Create a Home
+
+`POST /api/homes`
+
+Request:
+
+```json
+{
+  "name": "My Home"
+}
+```
+
+Success response: `201 Created`
+
+### Add a Member
+
+`POST /api/homes/:homeId/members`
+
+Request:
+
+```json
+{
+  "name": "Priyanshu"
+}
+```
+
+Success response: `201 Created`
+
+Returns `404` if the home does not exist.
+
+### Create and Split a Bill
+
+`POST /api/homes/:homeId/bills`
+
+Request:
+
+```json
+{
+  "title": "Electricity Bill",
+  "totalCents": 1000
+}
+```
+
+Success response: `201 Created`
+
+Returns `404` if the home does not exist and `422` if the amount is invalid or the home has no members.
+
+All API monetary amounts are represented as integer cents. No floating-point values are used for backend money calculations.
+
+### Pay a Share
+
+`POST /api/bills/:billId/shares/:shareId/pay`
+
+Required header:
+
+```text
+Idempotency-Key: unique-request-key
+```
+
+Success response: `200 OK`
+
+- Returns `400` if the idempotency key is missing.
+- Returns `404` if the bill or share does not exist.
+- Returns `409` if the share has already been paid using a different key.
+- Repeating a request with the same key returns the existing payment result.
+
+### Get Home Balances
+
+`GET /api/homes/:homeId/balances`
+
+Returns each member's outstanding unpaid amount, ordered by the order in which members were added.
+
+Returns `404` if the home does not exist.
+
+## Bill Splitting Logic
+
+Bills are divided equally among all members of a home.
+
+The backend uses integer cents to avoid floating-point precision issues.
+
+When the total amount cannot be divided equally, the remaining cents are distributed one by one to the earliest-added members.
+
+**Example:**
+
+A bill of 1000 cents shared among three members:
+
+| Member | Share |
+|---|---:|
+| Member 1 | 334 cents |
+| Member 2 | 333 cents |
+| Member 3 | 333 cents |
+| **Total** | **1000 cents** |
+
+The shares always add up to the original bill amount.
+
+## Payment Idempotency and Concurrency
+
+The payment endpoint requires an `Idempotency-Key` header.
+
+- Repeating a payment request with the same key for the same share returns the existing payment result.
+- Using a different key for an already-paid share returns a conflict response.
+- Conditional database updates ensure that only one request can successfully mark an unpaid share as paid.
+- This protects payment records against duplicate and simultaneous requests.
+
+## Database Constraints
+
+The SQLite schema uses named constraints to protect data integrity, including:
+
+- Foreign key constraints to maintain relationships between homes, members, bills, and shares.
+- Unique constraints to prevent duplicate member/share relationships and idempotency keys.
+- Check constraints to prevent invalid names, bill amounts, and payment states.
+
+These constraints provide database-level protection in addition to API validation.
+
+## Decisions
+
+### 1. Store money as integer cents
+
+All monetary amounts are stored and calculated as integers instead of floating-point numbers. This avoids precision errors during bill splitting and payment calculations.
+
+### 2. Use idempotency keys for payments
+
+Payment requests require an idempotency key to prevent duplicate payment processing. Conditional database updates ensure that simultaneous requests cannot successfully pay the same share twice.
+
+### 3. Use Cloudflare D1 with relational constraints
+
+Cloudflare D1 provides SQLite-based persistent storage. Foreign keys, unique constraints, and check constraints help maintain data integrity and prevent invalid relationships between homes, members, bills, and shares.
+
+## Testing and Quality Checks
+
+Run the following commands from the project root:
+
+```bash
+# Run all automated tests
+pnpm test
+
+# Run Biome formatting and lint checks
+pnpm check
+
+# Automatically fix supported Biome issues
+pnpm check:fix
+
+# TypeScript checks for both API and frontend
+pnpm typecheck
+
+# Build the frontend for production
+pnpm build
+```
+
+### Test Coverage
+
+The automated API test suite covers:
+
+- Home creation and member management.
+- Bill creation and equal splitting.
+- Payment processing and idempotency.
+- Invalid payment requests and missing resources.
+
+The implementation also handles the assignment's required edge cases, including empty homes, invalid amounts, uneven splits, repeated payments, concurrent payment requests, missing bills or shares, and frontend API failures.
+
+## AI Usage Disclosure
+
+ChatGPT was used as an AI assistance tool during development for understanding assignment requirements, discussing implementation approaches, generating and reviewing code, debugging TypeScript issues, preparing test commands, and improving project documentation.
+
+The generated code and suggestions were reviewed, tested, and integrated into the project by me. I understand the implementation and can explain the technical decisions made.

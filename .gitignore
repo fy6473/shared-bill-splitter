@@ -1,18 +1,69 @@
+
+# ==========================================
+# Dependencies
+# ==========================================
 node_modules/
+**/node_modules/
+
+# ==========================================
+# Build output and coverage
+# ==========================================
 dist/
+**/dist/
 build/
-.wrangler/
-.dev.vars
+**/build/
+coverage/
+
+# ==========================================
+# Environment variables and secrets
+# ==========================================
 .env
-.env.local
-.env.*.local
+.env.*
+!.env.example
+.dev.vars
+.dev.vars.*
+!.dev.vars.example
+
+# ==========================================
+# Cloudflare / Wrangler local files
+# ==========================================
+.wrangler/
+**/.wrangler/
+
+# ==========================================
+# Local databases
+# ==========================================
+*.sqlite
+*.sqlite3
+*.db
+
+# ==========================================
+# Logs
+# ==========================================
 *.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+
+# ==========================================
+# Operating system files
+# ==========================================
 .DS_Store
+Thumbs.db
+desktop.ini
+
+# ==========================================
+# IDE and editor files
+# ==========================================
 .vscode/
 .idea/
 
-# wrangler-generated types — regenerate on `pnpm install` via api/postinstall
+# ==========================================
+# Wrangler-generated types
+# ==========================================
 api/worker-configuration.d.ts
 
-# Note: web/src/routeTree.gen.ts IS committed so fresh-clone typecheck works.
-# The TanStack Router vite plugin regenerates it on dev/build.
+# ==========================================
+# Keep TanStack generated route tree committed
+# ==========================================
+# web/src/routeTree.gen.ts
